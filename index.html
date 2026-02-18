@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>2048 - Raciocínio Relaxante</title>
+    
+    <meta name="theme-color" content="#1e1e24">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIj4KPHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHJ4PSI4MCIgZmlsbD0iI2VkYzIyZSIvPgo8dGV4dCB4PSI1MCUiIHk9IjYwJSIgZm9udC1zaXplPSIzMjAiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmZmZmZmIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiPjI8L3RleHQ+Cjwvc3ZnPg==">
+
+    <style>
+        :root {
+            --bg-body: #1e1e24;
+            --bg-grid: #2b2b36;
+            --tile-empty: #3a3a45;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --tile-2: #eee4da;
+            --tile-4: #ede0c8;
+            --tile-8: #f2b179;
+            --tile-16: #f59563;
+            --tile-32: #ff7f50;
+            --tile-64: #ff6b6b;
+            --tile-128: #feca57;
+            --tile-256: #ff9f43;
+            --tile-512: #54a0ff;
+            --tile-1024: #2e86de;
+            --tile-2048: #00d2d3;
+            --tile-super: #5f27cd;
+            --overlay-bg: rgba(30, 30, 36, 0.9);
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --highlight: #2ecc71;
+            --danger: #ff4757;
+            --gold: #f1c40f;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+            min-height: 100vh; margin: 0; padding-top: env(safe-area-inset-top, 20px);
+            background-color: var(--bg-body); color: var(--text-primary);
+            touch-action: none; user-select: none; overflow: hidden;
+        }
+
+        .header { text-align: center; margin-bottom: 15px; width: 95%; max-width: 400px; }
+        h1 { margin: 10px 0; font-size: clamp(20px, 6vw, 26px); font-weight: 800; }
+        .stats-container { display: flex; gap: 8px; margin-bottom: 10px; justify-content: center; }
+
+        .info-box {
+            background: var(--glass-bg); padding: 8px 4px; border-radius: 8px;
+            text-align: center; flex: 1; border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .info-box.record {
+            background: rgba(46, 204, 113, 0.15);
+            border: 1px solid var(--highlight);
+            box-shadow: 0 0 12px rgba(46, 204, 113, 0.2);
+        }
+        .info-box.record .info-value { color: var(--highlight); }
+
+        /* EFEITO DE VITÓRIA MOMENTÂNEO */
+        @keyframes victory-glow {
+            0% { transform: scale(1); box-shadow: 0 0 0px var(--gold); }
+            50% { transform: scale(1.1); box-shadow: 0 0 25px var(--gold); border-color: var(--gold); }
+            100% { transform: scale(1); box-shadow: 0 0 0px var(--gold); }
+        }
+        .achievement-moment { animation: victory-glow 0.8s ease-out; z-index: 100; }
+
+        .info-label { font-size: 9px; text-transform: uppercase; display: block; color: var(--text-secondary); font-weight: 600; }
+        .info-value { font-size: 20px; font-weight: bold; }
+
+        #grid-container {
+            position: relative;
+            background-color: var(--bg-grid);
+            padding: 10px;
+            border-radius: 12px;
+            width: 88vw; height: 88vw;
+            max-width: 340px; max-height: 340px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        .background-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr);
+            gap: 10px; width: 100%; height: 100%;
+        }
+        .grid-cell { background-color: var(--tile-empty); border-radius: 6px; }
+
+        .tile {
+            position: absolute;
+            width: calc((100% - 50px) / 4);
+            height: calc((100% - 50px) / 4);
+            border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; color: #776e65;
+            transition: transform 0.15s ease-out;
+            font-size: clamp(32px, 10vw, 42px);
+            z-index: 10;
+        }
+
+        @keyframes appear { 0% { opacity: 0; transform: scale(0); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+        
+        .tile-new { animation: appear 0.2s ease-out forwards; }
+        .tile-merged { animation: pop 0.15s ease-in-out; }
+
+        .tile.long { font-size: clamp(22px, 7vw, 32px); }
+        .tile.very-long { font-size: clamp(16px, 5vw, 24px); }
+
+        .tile-2 { background: var(--tile-2); }
+        .tile-4 { background: var(--tile-4); }
+        .tile-8 { background: var(--tile-8); color: white; }
+        .tile-16 { background: var(--tile-16); color: white; }
+        .tile-32 { background: var(--tile-32); color: white; }
+        .tile-64 { background: var(--tile-64); color: white; }
+        .tile-128 { background: var(--tile-128); color: white; }
+        .tile-256 { background: var(--tile-256); color: white; }
+        .tile-512 { background: var(--tile-512); color: white; }
+        .tile-1024 { background: var(--tile-1024); color: white; }
+        .tile-2048 { background: var(--tile-2048); color: white; }
+
+        #game-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--overlay-bg); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; border-radius: 12px;
+            z-index: 20; text-align: center; padding: 20px; box-sizing: border-box;
+        }
+
+        .btn-main {
+            padding: 14px 28px; background: linear-gradient(135deg, #ff9f43, #ee5253);
+            color: white; border: none; border-radius: 50px; cursor: pointer;
+            font-weight: bold; font-size: 17px; box-shadow: 0 5px 15px rgba(238, 82, 83, 0.4);
+            text-transform: uppercase;
+        }
+
+        .btn-share {
+            margin-top: 15px; padding: 10px 20px; background: #000; color: white;
+            border: 1px solid #444; border-radius: 50px; text-decoration: none;
+            display: none; font-size: 14px; font-weight: bold;
+        }
+
+        #view-board-link {
+            position: absolute; bottom: 12px; right: 12px; font-size: 12px;
+            border-bottom: 1px dotted rgba(255,255,255,0.7);
+            color: rgba(255,255,255,0.8); cursor: pointer; display: none;
+        }
+
+        .move-controls { margin-top: 20px; display: grid; grid-template-columns: repeat(3, 70px); grid-template-rows: repeat(2, 60px); gap: 12px; justify-content: center; }
+        .btn-move { display: none; background: var(--glass-bg); color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; font-size: 26px; align-items: center; justify-content: center; }
+
+        #up { grid-column: 2; grid-row: 1; }
+        #left { grid-column: 1; grid-row: 2; }
+        #down { grid-column: 2; grid-row: 2; }
+        #right { grid-column: 3; grid-row: 2; }
+
+        #alt-actions { display: none; grid-column: 1 / span 3; grid-row: 1 / span 2; flex-direction: column; gap: 8px; align-items: center; justify-content: center; }
+        
+        .footer-actions { 
+            margin-top: 25px; 
+            display: flex; 
+            gap: 20px; 
+            align-items: center; 
+            justify-content: center; 
+        }
+
+        .footer-link { 
+            font-size: 13px; 
+            cursor: pointer; 
+            text-decoration: none;
+            border-bottom: 1px solid currentColor;
+            padding-bottom: 2px;
+            transition: opacity 0.2s;
+        }
+
+        .how-to-link { color: var(--text-secondary); }
+        .reset-link { color: var(--danger); font-weight: 600; }
+        .footer-link:active { opacity: 0.6; }
+
+    </style>
+</head>
+<body>
+
+    <div class="header" id="main-header">
+        <h1>2048 RELAXANTE</h1>
+        <div class="stats-container">
+            <div class="info-box"><span class="info-label">Partidas</span><span id="games-played" class="info-value">0</span></div>
+            <div class="info-box" id="current-max-box"><span class="info-label">Peça Atual</span><span id="max-tile" class="info-value">0</span></div>
+            <div class="info-box"><span class="info-label">Média</span><span id="avg-tile" class="info-value">0</span></div>
+        </div>
+    </div>
+
+    <div id="grid-container">
+        <div class="background-grid">
+            <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+            <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+            <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+            <div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div>
+        </div>
+        <div id="tile-container"></div>
+
+        <div id="game-overlay">
+            <h2 id="overlay-title">Foco e Calma</h2>
+            <p id="overlay-msg">Sua média histórica é o objetivo a superar.</p>
+            <button class="btn-main" id="start-btn" onclick="startMatch()">Iniciar Partida</button>
+            <a id="share-twitter-overlay" class="btn-share" target="_blank">Compartilhar no X</a>
+            <span id="view-board-link" onclick="showBoardOnly()">Ver tabuleiro</span>
+        </div>
+    </div>
+
+    <div class="move-controls" id="move-controls">
+        <button class="btn-move" id="up" onclick="move('up')">↑</button>
+        <button class="btn-move" id="left" onclick="move('left')">←</button>
+        <button class="btn-move" id="down" onclick="move('down')">↓</button>
+        <button class="btn-move" id="right" onclick="move('right')">→</button>
+        <div id="alt-actions">
+            <button class="btn-main" style="width: 220px;" onclick="startMatch()">Tentar novamente</button>
+            <a id="share-twitter-alt" class="btn-share" style="display:inline-block; margin-top: 5px;" target="_blank">Compartilhar no X</a>
+        </div>
+    </div>
+
+    <div class="footer-actions" id="footer-area">
+        <span class="footer-link how-to-link" onclick="alert('Deslize para fundir as peças e alcançar o maior número possível!')">Como jogar</span>
+        <span class="footer-link reset-link" onclick="resetStats()">Zerar Histórico</span>
+    </div>
+
+    <script>
+        const size = 4;
+        let grid = [];
+        let isMatchRunning = false;
+        let currentMatchMax = 0;
+        let gamesPlayed = parseInt(localStorage.getItem('R2048_gamesPlayed')) || 0;
+        let totalTilesSum = parseInt(localStorage.getItem('R2048_totalTilesSum')) || 0;
+        let lastNewTile = null;
+        let mergedPositions = [];
+        let hasPlayedVictoryEffect = false; // Controle para o efeito de média
+
+        function boot() { updateStatsDisplay(true); initTouchEvents(); }
+
+        function updateStatsDisplay(updateAvg) {
+            document.getElementById('games-played').textContent = gamesPlayed;
+            document.getElementById('max-tile').textContent = currentMatchMax;
+            let avg = getAverage();
+            if (updateAvg) document.getElementById('avg-tile').textContent = avg;
+            
+            const box = document.getElementById('current-max-box');
+            
+            if (isMatchRunning && avg > 0) {
+                if (currentMatchMax > avg) {
+                    box.classList.add('record');
+                    // GATILHO DO EFEITO: Apenas se ainda não tocou nesta partida
+                    if (!hasPlayedVictoryEffect) {
+                        triggerVictoryEffect(box);
+                        hasPlayedVictoryEffect = true;
+                    }
+                } else {
+                    box.classList.remove('record');
+                }
+            }
+        }
+
+        function triggerVictoryEffect(element) {
+            element.classList.add('achievement-moment');
+            setTimeout(() => {
+                element.classList.remove('achievement-moment');
+            }, 800);
+        }
+
+        function startMatch() {
+            if (!isMatchRunning) { gamesPlayed++; localStorage.setItem('R2048_gamesPlayed', gamesPlayed); }
+            currentMatchMax = 0;
+            hasPlayedVictoryEffect = false; // Reseta o efeito para a nova partida
+            document.getElementById('main-header').style.display = 'block';
+            document.getElementById('footer-area').style.display = 'none';
+            const overlay = document.getElementById('game-overlay');
+            overlay.style.display = 'none';
+            overlay.style.background = 'var(--overlay-bg)';
+            Array.from(overlay.children).forEach(c => { if(c.id !== 'share-twitter-overlay' && c.id !== 'view-board-link') c.style.display = 'block'; });
+            document.getElementById('alt-actions').style.display = 'none';
+            ['up', 'down', 'left', 'right'].forEach(id => document.getElementById(id).style.display = 'flex');
+            isMatchRunning = true;
+            grid = Array(size).fill().map(() => Array(size).fill(0));
+            addRandomTile(); addRandomTile();
+            updateStatsDisplay(false); 
+            render();
+        }
+
+        function render() {
+            const container = document.getElementById('tile-container');
+            container.innerHTML = '';
+            
+            let maxValOnBoard = Math.max(...grid.flat());
+            if (maxValOnBoard > currentMatchMax) {
+                totalTilesSum += (maxValOnBoard - currentMatchMax);
+                localStorage.setItem('R2048_totalTilesSum', totalTilesSum);
+                currentMatchMax = maxValOnBoard;
+                updateStatsDisplay(false);
+            }
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const val = grid[r][c];
+                    if (val !== 0) {
+                        const tile = document.createElement('div');
+                        let extraClass = val >= 128 ? (val >= 1024 ? 'very-long' : 'long') : '';
+                        let isNew = lastNewTile && lastNewTile.r === r && lastNewTile.c === c;
+                        let isMerged = mergedPositions.some(p => p.r === r && p.c === c);
+                        
+                        tile.className = `tile tile-${val} ${extraClass} ${isNew ? 'tile-new' : ''} ${isMerged ? 'tile-merged' : ''}`;
+                        tile.textContent = val;
+                        
+                        const gap = 10;
+                        const cellSize = (container.parentElement.clientWidth - 50) / 4;
+                        tile.style.left = `${gap + c * (cellSize + gap)}px`;
+                        tile.style.top = `${gap + r * (cellSize + gap)}px`;
+                        
+                        container.appendChild(tile);
+                    }
+                }
+            }
+            lastNewTile = null;
+            mergedPositions = [];
+        }
+
+        function endMatch() {
+            isMatchRunning = false;
+            updateStatsDisplay(true);
+            const overlay = document.getElementById('game-overlay');
+            document.getElementById('overlay-title').textContent = "Fim de Jogo";
+            document.getElementById('overlay-msg').textContent = "Peça final: " + currentMatchMax;
+            document.getElementById('start-btn').textContent = "Tentar novamente";
+            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Fiz ${currentMatchMax} no 2048 Relaxante! Média: ${getAverage()}`)}`;
+            document.getElementById('share-twitter-overlay').href = twitterUrl;
+            document.getElementById('share-twitter-alt').href = twitterUrl;
+            document.getElementById('share-twitter-overlay').style.display = 'inline-block';
+            document.getElementById('view-board-link').style.display = 'block';
+            overlay.style.display = 'flex';
+            document.getElementById('footer-area').style.display = 'flex';
+        }
+
+        function showBoardOnly() {
+            document.getElementById('main-header').style.display = 'none';
+            ['up', 'down', 'left', 'right'].forEach(id => document.getElementById(id).style.display = 'none');
+            const overlay = document.getElementById('game-overlay');
+            overlay.style.background = 'transparent';
+            Array.from(overlay.children).forEach(c => c.style.display = 'none');
+            document.getElementById('alt-actions').style.display = 'flex';
+        }
+
+        function move(dir) {
+            if (!isMatchRunning) return;
+            let oldGrid = JSON.stringify(grid);
+            mergedPositions = [];
+            if (dir === 'left' || dir === 'right') {
+                for (let r = 0; r < size; r++) {
+                    let row = [...grid[r]];
+                    if (dir === 'right') row.reverse();
+                    let res = slide(row, r, dir);
+                    if (dir === 'right') res.reverse();
+                    grid[r] = res;
+                }
+            } else {
+                for (let c = 0; c < size; c++) {
+                    let col = grid.map(row => row[c]);
+                    if (dir === 'down') col.reverse();
+                    let res = slide(col, c, dir);
+                    if (dir === 'down') res.reverse();
+                    for (let r = 0; r < size; r++) grid[r][c] = res[r];
+                }
+            }
+            if (oldGrid !== JSON.stringify(grid)) { addRandomTile(); render(); checkGameOver(); }
+        }
+
+        function slide(row, index, dir) {
+            let arr = row.filter(v => v);
+            for (let i = 0; i < arr.length - 1; i++) {
+                if (arr[i] === arr[i+1]) { 
+                    arr[i] *= 2; arr.splice(i+1, 1);
+                    let pos = (dir === 'left' || dir === 'right') ? {r: index, c: i} : {r: i, c: index};
+                    if (dir === 'right' || dir === 'down') pos = (dir === 'right') ? {r: index, c: 3-i} : {r: 3-i, c: index};
+                    mergedPositions.push(pos);
+                }
+            }
+            while (arr.length < size) arr.push(0);
+            return arr;
+        }
+
+        function addRandomTile() {
+            let empty = [];
+            for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (grid[r][c] === 0) empty.push({r, c});
+            if (empty.length > 0) {
+                let {r, c} = empty[Math.floor(Math.random() * empty.length)];
+                grid[r][c] = Math.random() < 0.9 ? 2 : 4;
+                lastNewTile = {r, c};
+            }
+        }
+
+        function checkGameOver() {
+            let can = false;
+            for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+                if (grid[r][c] === 0 || (r < 3 && grid[r][c] === grid[r+1][c]) || (c < 3 && grid[r][c] === grid[r][c+1])) can = true;
+            }
+            if (!can) endMatch();
+        }
+
+        function initTouchEvents() {
+            let sX, sY;
+            const container = document.getElementById('grid-container');
+            container.addEventListener('touchstart', e => { sX = e.touches[0].screenX; sY = e.touches[0].screenY; }, {passive: true});
+            container.addEventListener('touchend', e => {
+                if (!isMatchRunning) return;
+                let dx = e.changedTouches[0].screenX - sX, dy = e.changedTouches[0].screenY - sY;
+                if (Math.abs(dx) > Math.abs(dy)) { if (Math.abs(dx) > 30) move(dx > 0 ? 'right' : 'left'); }
+                else { if (Math.abs(dy) > 30) move(dy > 0 ? 'down' : 'up'); }
+            }, {passive: true});
+        }
+
+        function resetStats() { if(confirm("Zerar histórico?")) { localStorage.clear(); location.reload(); } }
+        function getAverage() { return gamesPlayed > 1 ? Math.round(totalTilesSum / (gamesPlayed - 1)) : 0; }
+        // Nota: Ajustei o getAverage apenas para o cálculo de exibição não contar a partida atual antes de terminá-la, 
+        // mantendo a lógica de "superar a média anterior".
+        
+        boot();
+    </script>
+</body>
+</html>
